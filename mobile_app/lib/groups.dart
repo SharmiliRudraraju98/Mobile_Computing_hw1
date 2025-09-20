@@ -60,59 +60,105 @@ class _MyHomePageState extends State<MyHomePage> {
   var _groupEntry = [false, false, false];
   var _pubpriv = false;
 
-  Widget _buildPopupDialog(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Group Creation'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          TextField(
-            controller: cmntController,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              labelText: 'Group Name',
+Widget _buildPopupDialog(BuildContext context) {
+  // local state for the dialog only
+  String visibilityValue = _pubpriv ? 'Private' : 'Public';
+
+  return StatefulBuilder(
+    builder: (dialogCtx, setStateSB) {
+      return AlertDialog(
+        title: const Text('Group Creation'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            TextField(
+              controller: cmntController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Group Name',
+              ),
             ),
-          ),
-          SizedBox(height: 5),
-          TextField(
-            maxLines: null,
-            controller: descController,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              labelText: 'Description',
+            const SizedBox(height: 8),
+            TextField(
+              maxLines: null,
+              controller: descController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Description',
+              ),
             ),
+            const SizedBox(height: 8),
+
+            // Visibility dropdown that rebuilds inside the dialog
+            Row(
+              children: [
+                const Text('Visibility:  '),
+                DropdownButton<String>(
+                  value: visibilityValue,
+                  items: const [
+                    DropdownMenuItem(value: 'Public',  child: Text('Public')),
+                    DropdownMenuItem(value: 'Private', child: Text('Private')),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setStateSB(() {
+                      visibilityValue = v; // updates the dialog UI immediately
+                    });
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade300),
+            child: const Text('Create'),
+            onPressed: () {
+              final name = cmntController.text.trim();
+              final desc = descController.text.trim();
+              if (name.isEmpty) return;
+
+              // persist selection back to the page state if you want
+              setState(() => _pubpriv = (visibilityValue == 'Private'));
+
+              final creatorEmail = auth?.email ?? 'unknown@wellcoach.org';
+
+              setState(() {
+                _groupList.add([
+                  name,
+                  visibilityValue,   // use the dialog’s current value
+                  creatorEmail,
+                  desc,
+                ]);
+                _groupEntry.add(false);
+              });
+
+              cmntController.clear();
+              descController.clear();
+              Navigator.of(context).pop();
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Created "$name" ($visibilityValue)')),
+              );
+            },
           ),
-          SizedBox(height: 5),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade300),
+            child: const Text('Close'),
+            onPressed: () {
+              cmntController.clear();
+              descController.clear();
+              Navigator.of(context).pop();
+            },
+          ),
         ],
-      ),
-      actions: <Widget>[
-        ElevatedButton(
-          onPressed: () {
-          // add the newly created group to the group list dropdown option (public private) auth!.email
-          // your codes begin here
+      );
+    },
+  );
+}
 
-
-
-          // end
-          },
-          style:
-              ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade300),
-          child: const Text('Create'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            cmntController.clear();
-            descController.clear();
-            Navigator.of(context).pop();
-          },
-          style:
-              ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade300),
-          child: const Text('Close'),
-        ),
-      ],
-    );
-  }
 
   Widget _buildGroupDialog(BuildContext context, index) {
     return AlertDialog(
@@ -128,11 +174,14 @@ class _MyHomePageState extends State<MyHomePage> {
       actions: <Widget>[
         ElevatedButton(
           onPressed: () {
-            // show corresponding group description after click
-            // your codes begin here
+            setState(() {
+  _groupEntry[index] = true;
+});
+Navigator.of(context).pop();
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(content: Text('Joined "${_groupList[index][0]}"')),
+);
 
-
-            // end
           },
           style:
               ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade300),
@@ -141,6 +190,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ElevatedButton(
           onPressed: () {
             // your codes begin here
+            Navigator.of(context).pop();
 
 
             // end

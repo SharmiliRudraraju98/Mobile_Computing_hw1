@@ -115,9 +115,12 @@ class _MyStatefulWidgetState extends State<MyStatefulWidget> {
                       onPressed: () async {
                         try {
                           // your codes begin here, you can use createUserWithEmailAndPassword in FirebaseAuth.instance
-                          // final user =
-
-                          // end
+                          final cred = await _auth.createUserWithEmailAndPassword(
+                            email: nameController.text.trim(),
+                            password: passwordController.text.trim(),
+                          );
+                          final user = cred.user;
+// end
                           if (user != null) {
                             FirebaseFirestore.instance
                                 .collection("users")

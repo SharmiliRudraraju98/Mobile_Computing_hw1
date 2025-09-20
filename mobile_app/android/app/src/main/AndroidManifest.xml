@@ -2,6 +2,16 @@
     package="com.example.mobile_app">
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- NEW: for camera capture -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- NEW: for gallery access (Android 13+) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
+    <!-- Back-compat for Android 12 and below (safe to leave in) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
     <queries>
   <intent>
     <action android:name="android.intent.action.TTS_SERVICE" />

@@ -30,6 +30,7 @@ dependencies:
   profanity_filter: ^2.0.0
   flutter_nude_detector:
   path_provider: ^2.1.1
+  firebase_storage: ^11.2.6
 
 dev_dependencies:
   flutter_test:

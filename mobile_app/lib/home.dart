@@ -20,9 +20,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:profanity_filter/profanity_filter.dart';
 import 'package:path_provider/path_provider.dart';
-
+import 'signup.dart';
 import 'groups.dart';
 import 'journal.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 List<String> collegeList = [];
 String dropdownValue = '';
@@ -30,6 +31,7 @@ String dropdownValue = '';
 Future<List<String>> fetchCollegeList() async {
   FirebaseFirestore firestore = FirebaseFirestore.instance;
   QuerySnapshot querySnapshot = await firestore.collection('locations').get();
+
 
   for (var doc in querySnapshot.docs) {
     String college = doc['college'];
@@ -84,16 +86,44 @@ var auth = FirebaseAuth.instance.currentUser;
 class _MyHomePageState extends State<MyHomePage> {
   File? galleryFile;
   final picker = ImagePicker();
+  bool _mapReady = false;
+
   //calls each time the app is opened
   @override
-  void initState() {
-    super.initState();
-    fetchCollegeList().then((college) {
-      setState(() {
-        collegeList = college;
-      });
+void initState() {
+  super.initState();
+  fetchCollegeList().then((college) {
+    setState(() {
+      collegeList = college;
+      if (collegeList.isNotEmpty) {
+        dropdownValue = collegeList.first;
+      }
     });
-  }
+    _kickoffInitialMarkers();  // load markers now
+  });
+}
+
+Future<String?> _uploadCommentImage(String locValue) async {
+  if (_imagePath == null) return null;
+  final file = File(_imagePath!);
+
+  // create a unique filename per user + time
+  final filename =
+      '${auth?.uid ?? "anon"}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+  final ref = FirebaseStorage.instance
+      .ref()
+      .child('comment_images/$locValue/$filename');
+
+  // upload
+  await ref.putFile(
+    file,
+    SettableMetadata(contentType: 'image/jpeg'),
+  );
+
+  // public download URL
+  return await ref.getDownloadURL();
+}
 
   Widget _buildDisplayDialog(BuildContext context, data) {
     return AlertDialog(
@@ -294,6 +324,21 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  void _kickoffInitialMarkers() {
+  if (dropdownValue.isEmpty) return;       // nothing to load yet
+  _clearCollegeMarkers();
+  _addCollegeMarkers(dropdownValue);
+  _displayCurrentLocation();
+}
+
+  ////here
+  void _clearCollegeMarkers() {
+  setState(() {
+    // keep the "Your Location" pin if you want; remove all others
+    markers.removeWhere((id, _) => id.value != 'Your Location');
+  });
+}
+
   void _showPicker({
     required BuildContext context,
   }) {
@@ -372,118 +417,180 @@ class _MyHomePageState extends State<MyHomePage> {
   String? selectedTone;
 
   Widget _buildCommentDialog(BuildContext context, locValue) {
-    // To store the selected tone
-
-    return AlertDialog(
-      title: const Text('Add a Comment'),
-      content: Container(
-          height: 370, // Adjusted the height to fit the new widget
-          width: 150,
-          child: Column(
-            children: <Widget>[
-              TextField(
-                controller: cmntController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Comment Entry',
-                ),
-              ),
-              SizedBox(height: 10), // Spacing
-              DropdownButtonFormField<String>(
-                value: selectedTone,
-                hint: Text('Select Comment Tone'),
-                items: <String>[
-                  'Positive',
-                  'Negative',
-                  'Neutral', // Added Neutral option
-                ].map<DropdownMenuItem<String>>((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  selectedTone = newValue;
-                  setState(() {
-                    selectedTone;
-                  });
-                },
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo.shade300),
-                child: const Text('Select Image'),
-                onPressed: () {
-                  _showPicker(context: context);
-                },
-              ),
-              _imagePath == null
-                  ? const Text('No image has been selected')
-                  : Image.file(File(_imagePath!)),
-            ],
-          )),
-      actions: <Widget>[
-        ElevatedButton(
-          style:
-              ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade300),
-          onPressed: () {
-            final filter = ProfanityFilter();
-            // implement - Check for profanity - 
-            //returns a msg "Please refrain from using profanity"(if profanity is present)
-            // hint: use hasProfanity() plugin, then change true to profanity check
-            // your codes begin here
-            if (true){
-  
-            // end
-            //SUICIDAL MESSAGES FILTER HERE
-            }
-            else {
-              // add code to set feelValue to g b n, 'Positive'='g', 'Negative'='b', 'Neutral'='n'
-              if (selectedTone != null) {
-                String feelValue;
-                // your codes begin here
-
-
-                // end
-                // Generating a random delay between 8 and 24 hours
-                int delayInHours = Random().nextInt(17) +
-                    8; // Generates a number between 0 and 16, then adds 8
-                DateTime postTime = DateTime.now();
-                DateTime visibleTime =
-                    postTime.add(Duration(hours: delayInHours));
-                // use FirebaseFirestore.instance to store the comment entry (data, user, feelvalue, posttime, visibletime)
-                // your codes begin here
-
-
-                // end
-                setState(() {
-                  selectedTone = null;
-                  cmntController.clear();
-                });
-                Navigator.of(context).pop();
-              } else {
-                // Handle case when no tone is selected (Maybe show a snackbar or alert)
-              }
-            }
-          },
-          child: const Text('Add Entry'),
+  // To store the selected tone
+  return AlertDialog(
+    title: const Text('Add a Comment'),
+    content: Container(
+      height: 370,
+      width: 150,
+      child: Column(
+        children: <Widget>[
+          TextField(
+            controller: cmntController,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              labelText: 'Comment Entry',
+            ),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: selectedTone,
+            hint: const Text('Select Comment Tone'),
+            items: <String>['Positive', 'Negative', 'Neutral']
+                .map<DropdownMenuItem<String>>((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(value),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              selectedTone = newValue;
+              setState(() {});
+            },
+          ),
+          const SizedBox(height: 10),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo.shade300,
+            ),
+            child: const Text('Select Image'),
+            onPressed: () {
+              _showPicker(context: context);
+            },
+          ),
+          _imagePath == null
+              ? const Text('No image has been selected')
+              : Image.file(File(_imagePath!)),
+        ],
+      ),
+    ),
+    actions: <Widget>[
+      // ======= ADD ENTRY =======
+      ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.indigo.shade300,
         ),
-        ElevatedButton(
-          onPressed: () {
-            galleryFile = null;
-            setState(() {
-              selectedTone = null;
-              cmntController.clear();
-            });
-            Navigator.of(context).pop();
-          },
-          style:
-              ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade300),
-          child: const Text('Close'),
+        onPressed: () async {
+          final filter = ProfanityFilter();
+          final text = cmntController.text.trim();
+
+          // -------- Profanity check --------
+          if (filter.hasProfanity(text)) {
+            Fluttertoast.showToast(
+              msg: "Please refrain from using profanity",
+              toastLength: Toast.LENGTH_SHORT,
+              gravity: ToastGravity.CENTER,
+            );
+            return; // stop; do not post
+          }
+
+          // -------- Simple self-harm screen (lightweight) --------
+          final selfHarmRegex = RegExp(
+            r'\b(kill myself|suicide|end my life|hurt myself|self\-harm)\b',
+            caseSensitive: false,
+          );
+          if (selfHarmRegex.hasMatch(text)) {
+            Fluttertoast.showToast(
+              msg:
+                  "If you’re struggling, please reach out. In the US you can call or text 988 for help.",
+              toastLength: Toast.LENGTH_LONG,
+              gravity: ToastGravity.CENTER,
+            );
+            return; // stop; do not post
+          }
+
+          // -------- Tone must be selected --------
+          if (selectedTone == null) {
+            Fluttertoast.showToast(
+              msg: "Please select a comment tone",
+              toastLength: Toast.LENGTH_SHORT,
+              gravity: ToastGravity.CENTER,
+            );
+            return;
+          }
+
+          // -------- Map tone to feel value --------
+          String feelValue;
+          switch (selectedTone) {
+            case 'Positive':
+              feelValue = 'g'; // green / good
+              break;
+            case 'Negative':
+              feelValue = 'b'; // bad / red
+              break;
+            case 'Neutral':
+            default:
+              feelValue = 'n'; // neutral / yellow
+          }
+
+          // Upload image if selected
+String? imageUrl;
+try {
+  imageUrl = await _uploadCommentImage(locValue);
+} catch (e) {
+  // If upload fails, keep going without image
+  debugPrint('Image upload failed: $e');
+}
+
+          // -------- Post & visible times --------
+          int delayInHours = 0;
+          // final int delayInHours = Random().nextInt(17) + 8; // 8..24
+          final DateTime postTime = DateTime.now();
+          final DateTime visibleTime =
+              postTime.add(Duration(hours: delayInHours));
+
+          // -------- Write to Firestore --------
+          await FirebaseFirestore.instance
+              .collection('comments')
+              .doc(locValue) // location doc (e.g., "Building C")
+              .collection('comments')
+              .add({
+            'data': text,
+            'user': auth?.email ?? auth?.uid,
+            'feel': feelValue, // 'g' | 'b' | 'n'
+            'postTime': Timestamp.fromDate(postTime),
+            'visibleTime': Timestamp.fromDate(visibleTime),
+            'location': locValue,
+            if (imageUrl != null) 'imageUrl': imageUrl,
+            // Optional: image url if you later upload to Storage:
+            // 'imageUrl': uploadedImageUrl,
+          });
+
+          // -------- Reset UI and close --------
+          setState(() {
+            selectedTone = null;
+            cmntController.clear();
+            _imagePath = null;
+          });
+          Navigator.of(context).pop();
+
+          Fluttertoast.showToast(
+            msg: "Comment submitted!",
+            toastLength: Toast.LENGTH_SHORT,
+            gravity: ToastGravity.CENTER,
+          );
+        },
+        child: const Text('Add Entry'),
+      ),
+      // ======= CLOSE =======
+      ElevatedButton(
+        onPressed: () {
+          galleryFile = null;
+          setState(() {
+            selectedTone = null;
+            cmntController.clear();
+            _imagePath = null;
+          });
+          Navigator.of(context).pop();
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.indigo.shade300,
         ),
-      ],
-    );
-  }
+        child: const Text('Close'),
+      ),
+    ],
+  );
+}
 
   Position _location = Position(
       latitude: 0,
@@ -566,32 +673,51 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  void _addCollegeMarkers(String collegeName) async {
-    FirebaseFirestore.instance
+  Future<void> _addCollegeMarkers(String collegeName) async {
+  try {
+    final qs = await FirebaseFirestore.instance
         .collection("locations")
         .where("college", isEqualTo: collegeName)
-        .get()
-        .then((querySnapshot) {
-      for (var doc in querySnapshot.docs) {
-        var data = doc.data() as Map<String, dynamic>;
-        var location = data['location'] as List<dynamic>;
-        var name = data['name'] as String;
+        .get();
 
-        //adds location for each "name" aka "building"
-        double lat = location[0];
-        double lng = location[1];
+    final points = <LatLng>[];
+    for (var doc in qs.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final loc = (data['location'] as List?) ?? const [0, 0];
+      final name = (data['name'] ?? 'Unknown') as String;
+      final lat = (loc[0] as num).toDouble();
+      final lng = (loc[1] as num).toDouble();
 
-        _add(lat, lng, name, false, -1);
-      }
-    }).catchError((error) {
-      print("Error getting documents: $error");
-    });
+      points.add(LatLng(lat, lng));
+      _add(lat, lng, name, false, -1);
+    }
+
+    // 🔹 Recenter camera to fit all markers for this college
+    if (points.isNotEmpty && mapController != null) {
+      final swLat = points.map((p) => p.latitude).reduce((a, b) => a < b ? a : b);
+      final swLng = points.map((p) => p.longitude).reduce((a, b) => a < b ? a : b);
+      final neLat = points.map((p) => p.latitude).reduce((a, b) => a > b ? a : b);
+      final neLng = points.map((p) => p.longitude).reduce((a, b) => a > b ? a : b);
+
+      final bounds = LatLngBounds(
+        southwest: LatLng(swLat, swLng),
+        northeast: LatLng(neLat, neLng),
+      );
+
+      await mapController.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+    }
+  } catch (e) {
+    debugPrint("Error getting documents: $e");
   }
+}
 
-  void _onMapCreated(GoogleMapController controller) {
-    mapController = controller;
-    changeMapMode(mapController);
-  }
+void _onMapCreated(GoogleMapController controller) {
+  mapController = controller;
+  _mapReady = true;
+  changeMapMode(mapController);
+  _kickoffInitialMarkers();    // ensures markers show on first open
+}
+
 
   List<String> items = [
     "Journal",
@@ -614,15 +740,29 @@ class _MyHomePageState extends State<MyHomePage> {
         home: Scaffold(
             backgroundColor: Colors.lightGreen[100],
             appBar: AppBar(
-              centerTitle: true,
-              backgroundColor: Colors.indigo.shade300,
-              title: Text(
-                "Home Page",
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
+  centerTitle: true,
+  backgroundColor: Colors.indigo.shade300,
+  title: const Text(
+    "Home Page",
+    style: TextStyle(fontWeight: FontWeight.w500),
+  ),
+  actions: [
+    IconButton(
+      icon: const Icon(Icons.logout),
+      tooltip: 'Logout',
+      onPressed: () async {
+        await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
+        // Send user back to the sign-in page and clear the stack
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const Signup()),
+          (route) => false,
+        );
+      },
+    ),
+  ],
+),
             body: Container(
                 decoration: BoxDecoration(
                   image: DecorationImage(
@@ -776,13 +916,22 @@ class _MyHomePageState extends State<MyHomePage> {
                               child: Text(value),
                             );
                           }).toList(),
-                          onChanged: (String? value) {
-                            setState(() {
-                              dropdownValue = value!;
-                            });
-                            _addCollegeMarkers(value!);
-                            _displayCurrentLocation();
-                          },
+                          // onChanged: (String? value) {
+                          //   setState(() {
+                          //     dropdownValue = value!;
+                          //   });
+                          //   _addCollegeMarkers(value!);
+                          //   _displayCurrentLocation();
+                          // },
+                          onChanged: (String? value) async {
+  if (value == null) return;
+  setState(() => dropdownValue = value);
+
+  _clearCollegeMarkers();        // clear old pins
+  await _addCollegeMarkers(value); // add new pins
+  _displayCurrentLocation();     // optional: show user location
+},
+
                         ),
                         SizedBox(
                             width: 500,
